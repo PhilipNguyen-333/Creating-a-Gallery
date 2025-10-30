@@ -1,155 +1,238 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Canvas Image Gallery</title>
-  <style>
-    /* Reset default margin and set full height */
-    body, html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-    }
+<!DOCTYPE html> 
+<html> 
+   <head> 
+      <title>Canvas Image Gallery</title>  
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="mobile-web-app-capable" content="yes">
+      <link rel="stylesheet" href="w3.css">
+      <link rel="stylesheet" href="w3-colors-flat.css">
+   <style>
+      /* site header/footer sizing variables */
+      :root{
+         --header-height:64px; /* adjust if your header is taller */
+         --footer-height:48px; /* adjust if your footer is taller */
+      }
 
-    /* Header and footer styling */
-    header, footer {
-      width: 100%;
-      text-align: center;
-      background-color: #333;
-      color: white;
-      padding: 10px 0;
-      position: fixed;
-      left: 0;
-      z-index: 1;
-    }
+      /* Center the canvas and buttons on the page.
+         Also reserve space at top/bottom so fixed header/footer do not overlap content. */
+      body {
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+         font-family: sans-serif;
+         margin: 0; /* remove default page margin so header starts at very top */
+         padding-top: var(--header-height);   /* reserve space for the fixed header */
+         padding-bottom: var(--footer-height);/* reserve space for the fixed footer */
+      }
 
-    header {
-      top: 0;
-    }
+      canvas {
+         border: 2px solid #333;
+         margin-bottom: 20px;
+        /* responsive sizing: min 260px, prefer 85vw on small screens, cap at 720px on desktop */
+        width: clamp(260px, 85vw, 720px);
+        height: auto;
+        max-width: 100%;
+        display: block;
+      }
 
-    footer {
-      bottom: 0;
-    }
+      button {
+         margin: 0 10px;
+         padding: 10px 20px;
+         font-size: 16px;
+      }
 
-    /* Main content area with space reserved for header/footer */
-    main {
-      padding: 60px 20px 60px 20px; /* top and bottom padding for header/footer */
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
+      /* full-width fixed header/footer that won't block content due to body padding */
+      .site-header,
+      .site-footer{
+         position: fixed;
+         left: 0;
+         width: 100%;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         z-index: 1000; /* keep above page content */
+         padding: 0 16px;
+      }
 
-    /* Canvas styling */
-    canvas {
-      border: 1px solid #ccc;
-      /* make canvas smaller but still responsive:
-         - use up to 720px on large screens
-         - otherwise use 85% of the viewport width
-         - height adjusts automatically to preserve aspect ratio */
-      width: min(85vw, 720px);
-      height: auto;
-      max-width: 100%;
-    }
+      .site-header{
+         top: 0;
+         height: var(--header-height);
+      }
 
-    /* Controls styling */
-    .controls {
-      margin: 10px;
-    }
+      .site-footer{
+         bottom: 0;
+         height: var(--footer-height);
+      }
+   </style>
+   </head> 
+   
+   <body> 
 
-    button {
-      padding: 10px 20px;
-      font-size: 16px;
-    }
+      <header class="w3-container w3-flat-carrot site-header">
+           <h1>Example Gallery</h1>
+      </header>
 
-    /* Paragraph aligned to canvas left edge */
-    .description {
-      align-self: flex-start;
-      margin-top: 10px;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Image Gallery</h1>
-  </header>
+      <div class="w3-container"><!-- place main content here and it will show up between header and footer.-->
+         <p>Below is an example gallery with six images.</p>
+         <!-- Canvas element where images will be drawn -->
+         <canvas id="galleryCanvas" width="600" height="400"></canvas>
 
-  <main>
-    <canvas id="galleryCanvas" width="800" height="600"></canvas>
+         <!-- Gallery controls: left/right buttons centered under the canvas -->
+         <div class="w3-center" style="margin-top:8px;"> <!-- wrapper to center the buttons -->
+            <!-- previous button (left) -->
+            <button id="prevBtn" class="w3-button w3-light-grey" aria-label="Previous image"><!-- visible button -->
+               ◀ Prev
+            </button>
+            <!-- next button (right) -->
+            <button id="nextBtn" class="w3-button w3-light-grey" aria-label="Next image">
+               Next ▶
+            </button>
+         </div>
+      </div><!-- /content -->
+      
+      <footer class="w3-container w3-flat-carrot site-footer">
+         <p>This is the footer!</p>
+      </footer>
 
-    <div class="controls">
-      <button id="prevBtn">← Previous</button>
-      <button id="nextBtn">Next →</button>
-    </div>
+   <!-- Gallery script: preloads images and handles drawing + button clicks -->
+   <script>
+   // get a reference to the canvas element by its id
+   const canvas = document.getElementById('galleryCanvas'); // canvas DOM element
+   const ctx = canvas.getContext('2d'); // 2D drawing context used to draw images
 
-    <p class="description">Below is an example gallery.</p>
-  </main>
+   // list of image URLs (replace these paths with your real image files)
+   const imagePaths = [
+     'images/img1.jpg', // image 0
+     'images/img2.jpg', // image 1
+     'images/img3.jpg', // image 2
+     'images/img4.jpg', // image 3
+     'images/img5.jpg', // image 4
+     'images/img6.jpg'  // image 5
+   ];
 
-  <footer>
-    <p>This is the footer!</p>
-  </footer>
+   // array to hold preloaded Image objects
+   const images = new Array(imagePaths.length); // same length as imagePaths
+   let loadedCount = 0; // how many images have finished loading
+   let currentIndex = 0; // index of the image currently shown
 
-  <script>
-    const canvas = document.getElementById('galleryCanvas');
-    const ctx = canvas.getContext('2d');
+   // helper: draw an image scaled to fit the canvas while preserving aspect ratio and centering it
+   function drawImageScaled(img) {
+     // handle missing image
+     if (!img) {
+       // clear the visible area (use CSS pixels so clearing matches drawing coordinates)
+       const dpr = window.devicePixelRatio || 1;
+       const cssW = canvas.width / dpr;
+       const cssH = canvas.height / dpr;
+       ctx.clearRect(0, 0, cssW, cssH);
+       return;
+     }
 
-    // Array of image paths (assumes images are in images/ folder)
-    const imagePaths = [
-      'images/img1.jpg',
-      'images/img2.jpg',
-      'images/img3.jpg',
-      'images/img4.jpg',
-      'images/img5.jpg',
-      'images/img6.jpg'
-    ];
+     // device pixel ratio (1 on normal screens, >1 on HiDPI)
+     const dpr = window.devicePixelRatio || 1;
 
-    const images = [];
-    let currentIndex = 0;
+     // compute canvas size in CSS pixels (drawing coordinates after ctx.setTransform use CSS pixels)
+     const cssWidth = canvas.width / dpr;
+     const cssHeight = canvas.height / dpr;
 
-    // Preload all images
-    imagePaths.forEach((path, index) => {
-      const img = new Image();
-      img.src = path;
-      img.onload = () => {
-        images[index] = img;
-        if (index === 0) drawImage(); // Draw first image once loaded
-      };
-    });
+     // clear the canvas in CSS-pixel coordinates
+     ctx.clearRect(0, 0, cssWidth, cssHeight);
 
-    // Draw the current image centered and scaled to fit canvas
-    function drawImage() {
-      const img = images[currentIndex];
-      if (!img) return;
+     // calculate scale to fit image into the CSS-sized canvas while preserving aspect ratio
+     const scale = Math.min(cssWidth / img.width, cssHeight / img.height);
 
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+     // compute the displayed width and height (in CSS pixels)
+     const w = img.width * scale;
+     const h = img.height * scale;
 
-      // Calculate scale to fit while preserving aspect ratio
-      const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-      const scaledWidth = img.width * scale;
-      const scaledHeight = img.height * scale;
+     // compute top-left coordinates to center the image on the canvas (CSS pixels)
+     const x = (cssWidth - w) / 2;
+     const y = (cssHeight - h) / 2;
 
-      // Calculate position to center image
-      const x = (canvas.width - scaledWidth) / 2;
-      const y = (canvas.height - scaledHeight) / 2;
+     // draw the image using CSS-pixel coordinates; the previously set transform will map them to device pixels
+     ctx.drawImage(img, x, y, w, h);
+   }
 
-      // Draw image
-      ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-    }
+   // preload each image in imagePaths array
+   imagePaths.forEach((src, i) => {
+     const img = new Image(); // create a new Image object
+     img.onload = () => {     // when the image finishes loading...
+       images[i] = img;       // store the loaded Image object
+       loadedCount += 1;      // increment the loaded counter
 
-    // Navigate to previous image
-    document.getElementById('prevBtn').addEventListener('click', () => {
-      currentIndex = (currentIndex - 1 + images.length) % images.length;
-      drawImage();
-    });
+       // once the first image is loaded (or all are loaded) draw the initial image
+       // this ensures something appears quickly rather than waiting for all images
+       if (i === currentIndex) drawImageScaled(images[currentIndex]);
+       // optionally, you could wait for all to load: if (loadedCount === images.length) { ... }
+     };
+     img.onerror = () => {    // handle a load error for debugging
+       console.error('Failed to load image:', src); // log which image failed
+       images[i] = null;      // set slot to null if loading fails
+       loadedCount += 1;      // still count it so any "all loaded" logic moves on
+     };
+     img.src = src; // begin loading the image by setting src
+   });
 
-    // Navigate to next image
-    document.getElementById('nextBtn').addEventListener('click', () => {
-      currentIndex = (currentIndex + 1) % images.length;
-      drawImage();
-    });
+   // button references
+   const prevBtn = document.getElementById('prevBtn'); // left button element
+   const nextBtn = document.getElementById('nextBtn'); // right button element
 
-    // Redraw image on window resize to maintain scaling
-    window.addEventListener('resize', drawImage);
-  </script>
+   // function to show the image at currentIndex (with wrapping)
+   function showCurrentImage() {
+     // normalize index to be within bounds and wrap around
+     if (currentIndex < 0) currentIndex = images.length - 1;
+     if (currentIndex >= images.length) currentIndex = 0;
+
+     // draw the image (may be null if it failed to load)
+     drawImageScaled(images[currentIndex]);
+   }
+
+   // click handler for previous button: go to previous image then draw
+   prevBtn.addEventListener('click', () => {
+     currentIndex -= 1; // move one step left
+     showCurrentImage(); // update the canvas
+   });
+
+   // click handler for next button: go to next image then draw
+   nextBtn.addEventListener('click', () => {
+     currentIndex += 1; // move one step right
+     showCurrentImage(); // update the canvas
+   });
+
+   // keyboard support: left/right arrow keys cycle images
+   window.addEventListener('keydown', (ev) => {
+     if (ev.key === 'ArrowLeft') { // left arrow pressed
+       currentIndex -= 1;
+       showCurrentImage();
+     } else if (ev.key === 'ArrowRight') { // right arrow pressed
+       currentIndex += 1;
+       showCurrentImage();
+     }
+   });
+
+   // optional: resize canvas to match CSS / device pixel ratio for crisp rendering
+   // adjust only if you want to support responsive canvas scaling
+   (function adjustForHiDPI() {
+     function updateCanvasSize() {
+       const dpr = window.devicePixelRatio || 1;
+       const rect = canvas.getBoundingClientRect(); // get CSS size after responsive CSS applied
+       const cssWidth = Math.max(1, Math.round(rect.width));
+       const cssHeight = Math.max(1, Math.round(rect.height));
+       const displayWidth = cssWidth * dpr;
+       const displayHeight = cssHeight * dpr;
+       if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+         canvas.width = displayWidth;
+         canvas.height = displayHeight;
+         canvas.style.width = cssWidth + 'px';
+         canvas.style.height = cssHeight + 'px';
+         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+         drawImageScaled(images[currentIndex]);
+       }
+     }
+     window.addEventListener('resize', updateCanvasSize);
+     window.addEventListener('orientationchange', updateCanvasSize);
+     updateCanvasSize(); // initial sizing
+   })();
+   </script>
+
 </body>
 </html>
