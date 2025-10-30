@@ -1,28 +1,225 @@
 <!DOCTYPE html> 
 <html> 
    <head> 
-      <title>Hello World</title>  
+      <title>Canvas Image Gallery</title>  
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <meta name="mobile-web-app-capable" content="yes">
       <link rel="stylesheet" href="w3.css">
       <link rel="stylesheet" href="w3-colors-flat.css">
+   <style>
+      /* site header/footer sizing variables */
+      :root{
+         --header-height:64px; /* adjust if your header is taller */
+         --footer-height:48px; /* adjust if your footer is taller */
+      }
+
+      /* Center the canvas and buttons on the page.
+         Also reserve space at top/bottom so fixed header/footer do not overlap content. */
+      body {
+         display: flex;
+         flex-direction: column;
+         align-items: center;
+         font-family: sans-serif;
+         margin: 0; /* remove default page margin so header starts at very top */
+         padding-top: var(--header-height);   /* reserve space for the fixed header */
+         padding-bottom: var(--footer-height);/* reserve space for the fixed footer */
+      }
+
+      canvas {
+         border: 2px solid #333;
+         margin-bottom: 20px;
+      }
+
+      button {
+         margin: 0 10px;
+         padding: 10px 20px;
+         font-size: 16px;
+      }
+
+      /* full-width fixed header/footer that won't block content due to body padding */
+      .site-header,
+      .site-footer{
+         position: fixed;
+         left: 0;
+         width: 100%;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         z-index: 1000; /* keep above page content */
+         padding: 0 16px;
+      }
+
+      .site-header{
+         top: 0;
+         height: var(--header-height);
+      }
+
+      .site-footer{
+         bottom: 0;
+         height: var(--footer-height);
+      }
+   </style>
    </head> 
    
    <body> 
 
-     	<header class="w3-container w3-flat-carrot">
-		<h1>This is the header!</h1>
-	</header>
+         <header class="w3-container w3-flat-carrot site-header">
+           <h1>Example Gallery</h1>
+       </header>
 
-	<div class="w3-container"><!-- place main content here and it will show up between header and footer.-->
-		
-		<p>Hello World! [Your Name] is here.</p>
+      <div class="w3-container"><!-- place main content here and it will show up between header and footer.-->
+         <p>Below is the example gallery with six images.</p>
+         <!-- Canvas element where images will be drawn -->
+         <canvas id="galleryCanvas" width="600" height="400"></canvas>
 
-	</div><!-- /content -->
-	
-	<footer class="w3-bottom w3-container w3-flat-carrot">
-		<p>This is the footer!</p>
-	</footer>
-	   
-   </body>
+         <!-- Gallery controls: left/right buttons centered under the canvas -->
+         <div class="w3-center" style="margin-top:8px;"> <!-- wrapper to center the buttons -->
+            <!-- previous button (left) -->
+            <button id="prevBtn" class="w3-button w3-light-grey" aria-label="Previous image"><!-- visible button -->
+               ◀ Prev
+            </button>
+            <!-- next button (right) -->
+            <button id="nextBtn" class="w3-button w3-light-grey" aria-label="Next image">
+               Next ▶
+            </button>
+         </div>
+      </div><!-- /content -->
+      
+      <footer class="w3-container w3-flat-carrot site-footer">
+         <p>This is the footer!</p>
+      </footer>
+
+   <!-- Gallery script: preloads images and handles drawing + button clicks -->
+   <script>
+   // get a reference to the canvas element by its id
+   const canvas = document.getElementById('galleryCanvas'); // canvas DOM element
+   const ctx = canvas.getContext('2d'); // 2D drawing context used to draw images
+
+   // list of image URLs (replace these paths with your real image files)
+   const imagePaths = [
+     'images/img1.jpg', // image 0
+     'images/img2.jpg', // image 1
+     'images/img3.jpg', // image 2
+     'images/img4.jpg', // image 3
+     'images/img5.jpg', // image 4
+     'images/img6.jpg'  // image 5
+   ];
+
+   // array to hold preloaded Image objects
+   const images = new Array(imagePaths.length); // same length as imagePaths
+   let loadedCount = 0; // how many images have finished loading
+   let currentIndex = 0; // index of the image currently shown
+
+   // helper: draw an image scaled to fit the canvas while preserving aspect ratio and centering it
+   function drawImageScaled(img) {
+     // handle missing image
+     if (!img) {
+       // clear the visible area (use CSS pixels so clearing matches drawing coordinates)
+       const dpr = window.devicePixelRatio || 1;
+       const cssW = canvas.width / dpr;
+       const cssH = canvas.height / dpr;
+       ctx.clearRect(0, 0, cssW, cssH);
+       return;
+     }
+
+     // device pixel ratio (1 on normal screens, >1 on HiDPI)
+     const dpr = window.devicePixelRatio || 1;
+
+     // compute canvas size in CSS pixels (drawing coordinates after ctx.setTransform use CSS pixels)
+     const cssWidth = canvas.width / dpr;
+     const cssHeight = canvas.height / dpr;
+
+     // clear the canvas in CSS-pixel coordinates
+     ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+     // calculate scale to fit image into the CSS-sized canvas while preserving aspect ratio
+     const scale = Math.min(cssWidth / img.width, cssHeight / img.height);
+
+     // compute the displayed width and height (in CSS pixels)
+     const w = img.width * scale;
+     const h = img.height * scale;
+
+     // compute top-left coordinates to center the image on the canvas (CSS pixels)
+     const x = (cssWidth - w) / 2;
+     const y = (cssHeight - h) / 2;
+
+     // draw the image using CSS-pixel coordinates; the previously set transform will map them to device pixels
+     ctx.drawImage(img, x, y, w, h);
+   }
+
+   // preload each image in imagePaths array
+   imagePaths.forEach((src, i) => {
+     const img = new Image(); // create a new Image object
+     img.onload = () => {     // when the image finishes loading...
+       images[i] = img;       // store the loaded Image object
+       loadedCount += 1;      // increment the loaded counter
+
+       // once the first image is loaded (or all are loaded) draw the initial image
+       // this ensures something appears quickly rather than waiting for all images
+       if (i === currentIndex) drawImageScaled(images[currentIndex]);
+       // optionally, you could wait for all to load: if (loadedCount === images.length) { ... }
+     };
+     img.onerror = () => {    // handle a load error for debugging
+       console.error('Failed to load image:', src); // log which image failed
+       images[i] = null;      // set slot to null if loading fails
+       loadedCount += 1;      // still count it so any "all loaded" logic moves on
+     };
+     img.src = src; // begin loading the image by setting src
+   });
+
+   // button references
+   const prevBtn = document.getElementById('prevBtn'); // left button element
+   const nextBtn = document.getElementById('nextBtn'); // right button element
+
+   // function to show the image at currentIndex (with wrapping)
+   function showCurrentImage() {
+     // normalize index to be within bounds and wrap around
+     if (currentIndex < 0) currentIndex = images.length - 1;
+     if (currentIndex >= images.length) currentIndex = 0;
+
+     // draw the image (may be null if it failed to load)
+     drawImageScaled(images[currentIndex]);
+   }
+
+   // click handler for previous button: go to previous image then draw
+   prevBtn.addEventListener('click', () => {
+     currentIndex -= 1; // move one step left
+     showCurrentImage(); // update the canvas
+   });
+
+   // click handler for next button: go to next image then draw
+   nextBtn.addEventListener('click', () => {
+     currentIndex += 1; // move one step right
+     showCurrentImage(); // update the canvas
+   });
+
+   // keyboard support: left/right arrow keys cycle images
+   window.addEventListener('keydown', (ev) => {
+     if (ev.key === 'ArrowLeft') { // left arrow pressed
+       currentIndex -= 1;
+       showCurrentImage();
+     } else if (ev.key === 'ArrowRight') { // right arrow pressed
+       currentIndex += 1;
+       showCurrentImage();
+     }
+   });
+
+   // optional: resize canvas to match CSS / device pixel ratio for crisp rendering
+   // adjust only if you want to support responsive canvas scaling
+   (function adjustForHiDPI() {
+     const dpr = window.devicePixelRatio || 1; // device pixel ratio
+     const cssWidth = canvas.width; // current canvas width in CSS pixels
+     const cssHeight = canvas.height; // current canvas height in CSS pixels
+     // set internal pixel size to dpr * CSS size to make it crisp on high-DPI screens
+     canvas.width = cssWidth * dpr;
+     canvas.height = cssHeight * dpr;
+     canvas.style.width = cssWidth + 'px';
+     canvas.style.height = cssHeight + 'px';
+     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // scale drawing operations to device pixels
+     // redraw current image after resize
+     drawImageScaled(images[currentIndex]);
+   })();
+   </script>
+
+</body>
 </html>
