@@ -11,52 +11,102 @@
       :root{
          --header-height:64px; /* adjust if your header is taller */
          --footer-height:48px; /* adjust if your footer is taller */
+         --page-max-width:980px; /* max width of the centered content area */
+         --gutter:16px; /* page side gutter for small screens */
+
+         /* space reserved for controls and paragraph when sizing canvas */
+         --controls-space:120px;
       }
 
-      /* Center the canvas and buttons on the page.
-         Also reserve space at top/bottom so fixed header/footer do not overlap content. */
+      /* keep page at full width but center main content; remove body padding so header/footer can't be accidentally overridden by external CSS */
       body {
-         display: flex;
-         flex-direction: column;
-         align-items: center;
+         margin: 0;
          font-family: sans-serif;
-         margin: 0; /* remove default page margin so header starts at very top */
-         padding-top: var(--header-height);   /* reserve space for the fixed header */
-         padding-bottom: var(--footer-height);/* reserve space for the fixed footer */
+         background: #fff;
       }
 
-      canvas {
-         border: 2px solid #333;
-         margin-bottom: 20px;
-      }
-
-      button {
-         margin: 0 10px;
-         padding: 10px 20px;
-         font-size: 16px;
-      }
-
-      /* full-width fixed header/footer that won't block content due to body padding */
+      /* header/footer fixed to viewport edges and full width */
       .site-header,
       .site-footer{
          position: fixed;
          left: 0;
+         right: 0;            /* ensures full width even if width:100% overridden */
          width: 100%;
          display: flex;
          align-items: center;
          justify-content: center;
          z-index: 1000; /* keep above page content */
          padding: 0 16px;
+         box-sizing: border-box;
+      }
+      .site-header{ top: 0; height: var(--header-height); }
+      .site-footer{ bottom: 0; height: var(--footer-height); }
+
+      /* main content wrapper reserves space so header/footer do not overlap */
+      .main {
+         box-sizing: border-box;
+         padding-top: var(--header-height);    /* push content below header */
+         padding-bottom: var(--footer-height); /* avoid footer overlap */
+         width: 100%;
+         max-width: var(--page-max-width);
+         margin: 0 auto;                       /* center on wide screens */
+         padding-left: var(--gutter);
+         padding-right: var(--gutter);
+
+         /* ensure main can scroll internally if content is taller than available space,
+            but keep header/footer visible and avoid page-level scrolling that hides buttons */
+         max-height: calc(100vh - var(--header-height) - var(--footer-height));
+         overflow: auto;
       }
 
-      .site-header{
-         top: 0;
-         height: var(--header-height);
+      /* gallery wrapper ensures paragraph left-edge aligns with canvas left-edge */
+      .gallery {
+         display: flex;
+         flex-direction: column;
+         align-items: center;        /* center the gallery block on the page */
+         width: 100%;
+         max-width: var(--page-max-width); /* center the whole gallery block */
+         margin: 0 auto;                    /* center gallery on the page */
+         gap: 8px;
+      }
+      .gallery p {
+         margin: 0;            /* remove default margins */
+         line-height: 1.4;
+         width: 100%;          /* will match media-wrap width when JS sets it */
       }
 
-      .site-footer{
-         bottom: 0;
-         height: var(--footer-height);
+      /* wrapper that will be resized by JS to match the computed canvas width
+         so paragraph, canvas and controls remain the same width and centered */
+      .media-wrap {
+         margin: 0 auto;       /* center this block horizontally */
+         width: auto;          /* JS will set an explicit width in px */
+      }
+
+      /* responsive canvas: CSS width follows the media-wrap width, real pixel size set by JS */
+      #galleryCanvas {
+         display: block;
+         width: 100%;               /* fills the media-wrap */
+         height: auto;              /* JS controls internal pixel buffer height */
+         aspect-ratio: 3 / 2;
+         max-width: 100%;
+         border: 2px solid #333;
+         margin: 0;                 /* left edge lines up with paragraph in media-wrap */
+         background: #fff;
+      }
+
+      /* center the buttons horizontally inside the media-wrap */
+      .controls {
+         width: 100%;
+         display: flex;
+         justify-content: center; /* buttons centered relative to media-wrap width */
+         gap: 10px;
+         margin-bottom: 12px;
+      }
+      .controls button { margin: 0; padding: 10px 20px; font-size: 16px; }
+
+      @media (max-width:480px){
+         :root{ --gutter:8px; --controls-space:110px; }
+         .controls button{ padding:8px 12px; font-size:14px; }
       }
    </style>
    </head> 
@@ -67,21 +117,22 @@
            <h1>Example Gallery</h1>
       </header>
 
-      <div class="w3-container"><!-- place main content here and it will show up between header and footer.-->
-         <p>Below is an example gallery with six images.</p>
-         <!-- Canvas element where images will be drawn -->
-         <canvas id="galleryCanvas" width="600" height="400"></canvas>
+      <!-- main wrapper: preserves space for fixed header/footer so they do not overlap content -->
+      <div class="w3-container main"><!-- place main content here and it will show up between header and footer.-->
+         <div class="gallery">
+            <p>Below is an example gallery with six images.</p>
 
-         <!-- Gallery controls: left/right buttons centered under the canvas -->
-         <div class="w3-center" style="margin-top:8px;"> <!-- wrapper to center the buttons -->
-            <!-- previous button (left) -->
-            <button id="prevBtn" class="w3-button w3-light-grey" aria-label="Previous image"><!-- visible button -->
-               ◀ Prev
-            </button>
-            <!-- next button (right) -->
-            <button id="nextBtn" class="w3-button w3-light-grey" aria-label="Next image">
-               Next ▶
-            </button>
+            <!-- media-wrap groups the paragraph, canvas and buttons so they stay the same width -->
+            <div class="media-wrap">
+               <!-- Canvas element where images will be drawn -->
+               <canvas id="galleryCanvas" width="600" height="400"></canvas>
+
+               <!-- Gallery controls: left/right buttons centered under the canvas -->
+               <div class="controls"> <!-- wrapper to center the buttons -->
+                  <button id="prevBtn" class="w3-button w3-light-grey" aria-label="Previous image">◀ Prev</button>
+                  <button id="nextBtn" class="w3-button w3-light-grey" aria-label="Next image">Next ▶</button>
+               </div>
+            </div>
          </div>
       </div><!-- /content -->
       
@@ -204,21 +255,85 @@
      }
    });
 
-   // optional: resize canvas to match CSS / device pixel ratio for crisp rendering
-   // adjust only if you want to support responsive canvas scaling
-   (function adjustForHiDPI() {
-     const dpr = window.devicePixelRatio || 1; // device pixel ratio
-     const cssWidth = canvas.width; // current canvas width in CSS pixels
-     const cssHeight = canvas.height; // current canvas height in CSS pixels
-     // set internal pixel size to dpr * CSS size to make it crisp on high-DPI screens
-     canvas.width = cssWidth * dpr;
-     canvas.height = cssHeight * dpr;
-     canvas.style.width = cssWidth + 'px';
-     canvas.style.height = cssHeight + 'px';
-     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // scale drawing operations to device pixels
-     // redraw current image after resize
-     drawImageScaled(images[currentIndex]);
-   })();
+   // Responsive resize: set canvas internal pixel size to match CSS size * devicePixelRatio,
+   // preserve the canvas aspect ratio, and redraw the current image.
+   function resizeCanvasToDisplaySize() {
+     const dpr = window.devicePixelRatio || 1;
+
+     // compute header/footer sizes from CSS vars
+     const rootStyle = getComputedStyle(document.documentElement);
+     const headerH = parseInt(rootStyle.getPropertyValue('--header-height')) || 64;
+     const footerH = parseInt(rootStyle.getPropertyValue('--footer-height')) || 48;
+
+     // measure paragraph and controls so we can reserve their height
+     const gallery = document.querySelector('.gallery');
+     const mediaWrap = document.querySelector('.media-wrap');
+     const para = gallery.querySelector('p');
+     const controls = mediaWrap.querySelector('.controls');
+
+     const paraH = para ? para.getBoundingClientRect().height : 0;
+     const controlsH = controls ? controls.getBoundingClientRect().height : 0;
+     const paddingReserve = 24; // small breathing space
+
+     // compute available vertical space for the canvas so it never forces scrolling
+     const availableHeight = Math.max(50, Math.floor(window.innerHeight - headerH - footerH - paraH - controlsH - paddingReserve));
+
+     // use gallery width as the max available width for the canvas
+     const galleryStyle = getComputedStyle(gallery);
+     const galleryPaddingLeft = parseFloat(galleryStyle.paddingLeft) || 0;
+     const galleryPaddingRight = parseFloat(galleryStyle.paddingRight) || 0;
+     const availableWidth = Math.max(1, Math.floor(gallery.clientWidth - galleryPaddingLeft - galleryPaddingRight));
+
+     // desired CSS width (start from available width); compute height via aspect ratio
+     const aspect = 3 / 2; // width / height
+     let cssWidth = availableWidth;
+     let cssHeight = Math.round(cssWidth / aspect);
+
+     // if cssHeight is too tall for availableHeight, reduce cssWidth so height fits
+     if (cssHeight > availableHeight) {
+       cssHeight = availableHeight;
+       cssWidth = Math.round(cssHeight * aspect);
+     }
+
+     // apply computed width to the media-wrap so paragraph, canvas and controls line up and are centered
+     if (mediaWrap) {
+       mediaWrap.style.width = cssWidth + 'px';
+     }
+
+     // set internal pixel size taking devicePixelRatio into account
+     const displayWidth  = cssWidth * dpr;
+     const displayHeight = cssHeight * dpr;
+
+     if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+       canvas.width  = displayWidth;
+       canvas.height = displayHeight;
+       // set CSS layout size to our calculated CSS pixels
+       canvas.style.width  = cssWidth + 'px';
+       canvas.style.height = cssHeight + 'px';
+       // scale drawing so 1 unit = 1 CSS pixel
+       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+     }
+   }
+
+   // call resize once and on every window resize / orientation change
+   function handleResizeAndRedraw() {
+     resizeCanvasToDisplaySize();
+     drawImageScaled(images[currentIndex]); // redraw at new size
+   }
+
+   window.addEventListener('resize', handleResizeAndRedraw);
+   window.addEventListener('orientationchange', handleResizeAndRedraw);
+
+   // ensure canvas sized correctly on initial load
+   window.addEventListener('load', () => {
+     handleResizeAndRedraw();
+   });
+
+   // If images are loaded after initial load, ensure redraw when each image arrives (already present in your loader)
+   imagePaths.forEach((src, i) => {
+     const img = images[i];
+     if (img) img.onload = () => { drawImageScaled(img); };
+   });
    </script>
 
 </body>
